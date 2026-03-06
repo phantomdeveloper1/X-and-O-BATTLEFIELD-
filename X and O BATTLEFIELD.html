@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>XO Mega Game Ultimate</title>
+<style>
+body{background:linear-gradient(135deg,#0f172a,#020617);color:white;font-family:Arial;text-align:center;margin:0;padding:0;overflow-x:hidden;}
+h1{margin-top:20px;}
+#board{display:grid;grid-template-columns:repeat(3,100px);gap:12px;justify-content:center;margin-top:25px;}
+.cell{width:100px;height:100px;background:#1e293b;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:40px;cursor:pointer;transition:0.2s,box-shadow 0.3s,transform 0.3s;position:relative;}
+.cell:hover{transform:scale(1.1);box-shadow:0 0 15px #38bdf8;}
+button{padding:12px 25px;border-radius:10px;border:none;background:#38bdf8;color:white;font-size:18px;transition:0.25s;margin:5px;touch-action:manipulation;}
+button:hover{transform:scale(1.1);background:#0ea5e9;}
+#shop{display:none;margin-top:20px;}
+.skin{font-size:30px;margin:6px;cursor:pointer;transition:0.3s;text-align:center;}
+.skin.locked{opacity:0.4;}
+#xskins,#oskins,#legendary{display:grid;grid-template-columns:repeat(5,50px);gap:10px;justify-content:center;margin-bottom:10px;}
+#dailyReward{margin-top:10px;color:#22c55e;}
+#status{margin-top:15px;font-size:18px;}
+#leaderboard{margin-top:20px;}
+input#cmd{padding:8px;width:180px;margin-right:5px;}
+#levelMap{margin-top:15px;height:20px;width:300px;background:#334155;border-radius:10px;position:relative;overflow:hidden;margin-left:auto;margin-right:auto;}
+#levelProgress{height:100%;width:0%;background:#38bdf8;transition:width 0.5s;}
+.particle{position:absolute;width:10px;height:10px;border-radius:50%;background:#fffb00;pointer-events:none;animation:fly 0.8s linear forwards;}
+@keyframes fly{0%{transform:translate(0,0);opacity:1;}100%{transform:translate(calc(var(--x)*1px),calc(var(--y)*1px));opacity:0;}}
+.glow{animation:glowAnim 1s infinite alternate;}
+@keyframes glowAnim{0%{text-shadow:0 0 5px #ff0;}100%{text-shadow:0 0 20px #ff0;}}
+#chatContainer{position:fixed;bottom:-250px;width:100%;background:#1e293b;padding:10px;box-sizing:border-box;transition:bottom 0.5s;}
+#chatLog{max-height:200px;overflow-y:auto;background:#334155;padding:8px;border-radius:10px;margin-bottom:5px;color:white;font-size:14px;}
+#chatInput{width:70%;padding:8px;border-radius:8px;border:none;margin-right:5px;}
+</style>
+</head>
+<body>
+
+<h1>XO Mega Game Ultimate</h1>
+<div>Level: <span id="level">1</span> | Coins: <span id="coins">0</span></div>
+<div id="levelMap"><div id="levelProgress"></div></div>
+<div id="dailyReward"></div>
+
+<button onclick="openShop()">Shop</button>
+<button onclick="toggleChat()">Chat</button>
+<div id="board"></div>
+<div id="status">Your Turn</div>
+
+<div id="shop">
+<h2>X Skins</h2><div id="xskins"></div>
+<h2>O Skins</h2><div id="oskins"></div>
+<h2>Legendary Skins (50 Coins)</h2><div id="legendary"></div>
+<button onclick="closeShop()">Close</button>
+</div>
+
+<div id="chatContainer">
+  <div id="chatLog"></div>
+  <input type="text" id="chatInput" placeholder="Chat with AI...">
+  <button onclick="sendChat()">Send</button>
+</div>
+
+<input type="text" id="cmd" placeholder="Enter command">
+<button onclick="runCommand()">Enter</button>
+
+<div id="leaderboard"></div>
+
+<audio id="clickSound"><source src="https://www.soundjay.com/buttons/sounds/button-16.mp3" type="audio/mpeg"></audio>
+<audio id="winSound"><source src="https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3" type="audio/mpeg"></audio>
+<audio id="loseSound"><source src="https://www.soundjay.com/misc/sounds/fail-buzzer-01.mp3" type="audio/mpeg"></audio>
+<audio id="coinSound"><source src="https://www.soundjay.com/misc/sounds/coin-drop-3.mp3" type="audio/mpeg"></audio>
+<audio id="bgMusic" loop><source src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_8c0bfe364c.mp3?filename=futuristic-arcade-loop-110879.mp3" type="audio/mpeg"></audio>
+
+<script>
+// === GAME VARIABLES ===
+let board=[], cells=[], level=1, coins=0, gameOver=false, hackerActive=false;
+let xSkin="❌", oSkin="⭕", current="X";
+let leaderboard=JSON.parse(localStorage.getItem("leaderboard"))||[];
+const wins=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+
+// === SKINS ===
+const xSkins=["❌","❎","💀","⚡","🔥","🌌","👑","💻","🌟","💠","🌙","🌞","⭐","🛡️","💣","🎯","🧲","🪐","🌈","🕹️",
+              "🥇","🥈","🥉","🍀","🍎","🍓","🍒","🍉","🍍","🥭","🍌","🍑","🍐","🥝","🍊","🍋","🍏","🍆","🥥","🥑"];
+const oSkins=["⭕","🟢","🔵","💙","💎","🌈","🌕","🌑","🌸","🌺","🍀","🍁","🌻","🌼","🍇","🍉","🍊","🍋","🥭","🥝",
+              "🫐","🍏","🍎","🍐","🍒","🍓","🥑","🥦","🥬","🥕","🌽","🥔","🧄","🧅","🥯","🥖","🍞","🧈","🧂","🥩"];
+const legendarySkins=["👑","🔥","⚡","💎","🌌"];
+let ownedX=[0], ownedO=[0], ownedLegendary=[];
+
+// === COMMANDS ===
+const commands={};
+for(let i=1;i<=67;i++){commands[`cmd${i}`]=()=>{coins+=i*5; appendChat(`AI: Command cmd${i} executed! +${i*5} coins`); updateUI();}}
+commands.richkid=()=>{coins+=200; appendChat("AI: Richkid activated! +200 coins"); updateUI();}
+commands.unlockskins=()=>{ownedX=xSkins.map((_,i)=>i); ownedO=oSkins.map((_,i)=>i); ownedLegendary=legendarySkins.map((_,i)=>i); loadShop(); appendChat("AI: All skins unlocked!");}
+commands.level100=()=>{level=100; updateUI(); appendChat("AI: Level set to 100");}
+commands.hacker=()=>{xSkin="💻"; oSkin="💻"; hackerActive=true; ownedLegendary.push(legendarySkins.length); appendChat("AI: Hacker skin unlocked! You can place it anywhere 💻"); legendaryConfetti(); updateUI();}
+
+// === SOUND & EFFECTS ===
+function playSound(type){if(type=='click')document.getElementById('clickSound').play();
+if(type=='win')document.getElementById('winSound').play();
+if(type=='lose')document.getElementById('loseSound').play();
+if(type=='coin')document.getElementById('coinSound').play();}
+
+// === BOARD INIT ===
+function createBoard(){board=[]; cells=[]; const boardDiv=document.getElementById("board"); boardDiv.innerHTML=""; for(let i=0;i<9;i++){let cell=document.createElement("div"); cell.className="cell"; cell.onclick=()=>playerMove(i); boardDiv.appendChild(cell); cells.push(cell); board.push("");}}
+
+// === PLAYER MOVE ===
+function playerMove(i){
+  if(board[i]=="" || hackerActive){
+    board[i]=current;
+    cells[i].textContent=current=="X"?xSkin:oSkin;
+    cells[i].classList.add("glow");
+    checkWin(current);
+    updateLevelMap();
+    playSound('click');
+    aiComment();
+    if(!gameOver){current=current=="X"?"O":"X"; if(current=="O") setTimeout(computerMove,200);}
+  }
+}
+
+// === COMPUTER MOVE ===
+function computerMove(){let best=null; for(let i=0;i<9;i++){if(board[i]==""){best=i; break;}} if(best!=null) move(best,"O"); current="X";}
+function move(i,player){board[i]=player; cells[i].textContent=player=="X"?xSkin:oSkin; checkWin(player);}
+
+// === WIN + PARTICLES ===
+function checkWin(player){for(let p of wins){let [a,b,c]=p;if(board[a]==player && board[b]==player && board[c]==player){gameOver=true; cells[a].classList.add("locked"); cells[b].classList.add("locked"); cells[c].classList.add("locked"); if(player=="X"){coins+=2; level++; document.getElementById("coins").innerText=coins; document.getElementById("level").innerText=level; document.getElementById("status").innerText="You Win! +2 coins"; playSound('win'); spawnParticles(); if(ownedLegendary.includes(xSkins.indexOf(xSkin))) legendaryConfetti();} else{document.getElementById("status").innerText="Computer Wins"; playSound('lose');} updateLeaderboard(player); saveGame(); setTimeout(resetBoard,1200); return;}} if(board.every(c=>c!="")){gameOver=true; document.getElementById("status").innerText="Draw"; setTimeout(resetBoard,1200);}}
+function spawnParticles(){for(let i=0;i<20;i++){let p=document.createElement("div"); p.className="particle"; p.style.setProperty('--x',Math.random()*200-100); p.style.setProperty('--y',Math.random()*-200); document.body.appendChild(p); setTimeout(()=>p.remove(),800);}}
+function legendaryConfetti(){for(let i=0;i<50;i++){let p=document.createElement("div"); p.className="particle"; p.style.background="#ff00ff"; p.style.setProperty('--x',Math.random()*400-200); p.style.setProperty('--y',Math.random()*-400); document.body.appendChild(p); setTimeout(()=>p.remove(),1200);}}
+
+// === RESET ===
+function resetBoard(){board=["","","","","","","","",""]; cells.forEach(c=>c.textContent=""); gameOver=false; current="X"; document.getElementById("status").innerText="Your Turn";}
+
+// === LEVEL MAP ===
+function updateLevelMap(){document.getElementById("levelProgress").style.width=Math.min(level*5,100)+"%";}
+
+// === CHAT ===
+let chatOpen=false;
+function toggleChat(){chatOpen=!chatOpen; document.getElementById("chatContainer").style.bottom=chatOpen?"0":"-250px";}
+function sendChat(){let input=document.getElementById("chatInput").value.trim(); if(!input) return; appendChat("You: "+input); document.getElementById("chatInput").value=""; if(commands[input]) commands[input](); else appendChat("AI: "+aiResponse(input));}
+function appendChat(msg){let log=document.getElementById("chatLog"); let p=document.createElement("p"); p.textContent=msg; log.appendChild(p); log.scrollTop=log.scrollHeight;}
+function aiResponse(msg){msg=msg.toLowerCase(); if(msg.includes("hello")||msg.includes("hi")) return "Hello! Ready to play XO?"; if(msg.includes("tip")) return "Try the center!"; return "AI: Keep playing!";}
+function aiComment(){if(Math.random()<0.3) appendChat("AI: Watch your next move!");}
+
+// === SHOP ===
+function openShop(){document.getElementById("shop").style.display="block";}
+function closeShop(){document.getElementById("shop").style.display="none";}
+function loadShop(){let xs=document.getElementById("xskins"); let os=document.getElementById("oskins"); let lg=document.getElementById("legendary"); xs.innerHTML=""; os.innerHTML=""; lg.innerHTML=""; xSkins.forEach((s,i)=>{let span=document.createElement("div"); span.className="skin"; span.textContent=s; if(!ownedX.includes(i)) span.classList.add("locked"); span.onclick=()=>buyX(i,span); xs.appendChild(span);}); oSkins.forEach((s,i)=>{let span=document.createElement("div"); span.className="skin"; span.textContent=s; if(!ownedO.includes(i)) span.classList.add("locked"); span.onclick=()=>buyO(i,span); os.appendChild(span);}); legendarySkins.forEach((s,i)=>{let span=document.createElement("div"); span.className="skin"; span.textContent=s; if(!ownedLegendary.includes(i)) span.classList.add("locked"); span.onclick=()=>buyLegendary(i,span); lg.appendChild(span);});}
+function buyX(i,el){if(!ownedX.includes(i) && coins>=5){coins-=5; ownedX.push(i); el.classList.remove("locked"); playSound('coin'); updateUI();} xSkin=xSkins[i]; updateUI();}
+function buyO(i,el){if(!ownedO.includes(i) && coins>=5){coins-=5; ownedO.push(i); el.classList.remove("locked"); playSound('coin'); updateUI();} oSkin=oSkins[i]; updateUI();}
+function buyLegendary(i,el){if(!ownedLegendary.includes(i) && coins>=50){coins-=50; ownedLegendary.push(i); el.classList.remove("locked"); playSound('coin'); updateUI();} xSkin=legendarySkins[i]; updateUI();}
+
+// === UI ===
+function updateUI(){document.getElementById("coins").innerText=coins; document.getElementById("level").innerText=level;}
+
+// === LEADERBOARD ===
+function updateLeaderboard(player){if(player=="X"){leaderboard.push(level); leaderboard.sort((a,b)=>b-a); leaderboard=leaderboard.slice(0,5); localStorage.setItem("leaderboard",JSON.stringify(leaderboard)); showLeaderboard();}}
+function showLeaderboard(){let div=document.getElementById("leaderboard"); div.innerHTML="<h3>Leaderboard</h3>"; leaderboard.forEach((s,i)=>{div.innerHTML+=`<p>${i+1}. Level ${s}</p>`;});}
+
+// === SAVE/LOAD ===
+function saveGame(){localStorage.setItem("xo_level",level); localStorage.setItem("xo_coins",coins); localStorage.setItem("xo_xSkin",xSkin); localStorage.setItem("xo_oSkin",oSkin); localStorage.setItem("ownedX",JSON.stringify(ownedX)); localStorage.setItem("ownedO",JSON.stringify(ownedO)); localStorage.setItem("ownedLegendary",JSON.stringify(ownedLegendary));}
+function loadGame(){level=parseInt(localStorage.getItem("xo_level"))||1; coins=parseInt(localStorage.getItem("xo_coins"))||0; xSkin=localStorage.getItem("xo_xSkin")||"❌"; oSkin=localStorage.getItem("xo_oSkin")||"⭕"; ownedX=JSON.parse(localStorage.getItem("ownedX"))||[0]; ownedO=JSON.parse(localStorage.getItem("ownedO"))||[0]; ownedLegendary=JSON.parse(localStorage.getItem("ownedLegendary"))||[]; updateUI();}
+
+// === DAILY REWARD ===
+function dailyReward(){let last=localStorage.getItem("dailyReward");let today=new Date().toDateString();if(last!=today){coins+=20;localStorage.setItem("dailyReward",today);document.getElementById("dailyReward").innerText="Daily reward: +20 coins!"; updateUI();}}
+
+// === COMMAND INPUT ===
+function runCommand(){let cmd=document.getElementById("cmd").value.trim(); if(cmd==="") return; if(commands[cmd]) commands[cmd](); else appendChat("AI: Unknown command"); document.getElementById("cmd").value="";}
+
+// === INIT ===
+createBoard(); loadGame(); dailyReward(); loadShop(); showLeaderboard(); document.getElementById("bgMusic").play();
+</script>
+
+</body>
+</html>
